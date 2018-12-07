@@ -2,9 +2,8 @@ __author__ = 'rohil'
 
 import numpy as np
 import pandas as pd
-from sklearn.datasets import make_classification
-from sklearn.model_selection import train_test_split
-
+from scipy import exp
+from sklearn.metrics.pairwise import linear_kernel, polynomial_kernel, rbf_kernel
 
 def passive_agrresive_algorithm(train_x,train_y,type_of_update=None,C = 0.01):
 
@@ -16,13 +15,15 @@ def passive_agrresive_algorithm(train_x,train_y,type_of_update=None,C = 0.01):
     ## Passive Aggressive Algorithm
 
     prediction_error = []
+    weights_list_per_50_egs = []
     for idx, rows in train_x.iterrows():
 
         rows = np.array(rows).reshape((1,no_of_features))
         y_prediction = np.sign(np.dot(weights.T, rows.T))
         c = train_y[idx]- y_prediction
         prediction_error.append(c)
-        fg = (train_y[idx] * np.dot(weights.T, rows.T))
+
+
         loss = max(0, 1 - (train_y[idx] * np.dot(weights.T, rows.T)))
 
         norm_square = np.power(np.linalg.norm(rows, ord=2), 2)
@@ -40,9 +41,80 @@ def passive_agrresive_algorithm(train_x,train_y,type_of_update=None,C = 0.01):
         coeff = tau*train_y[idx]
 
         weights+=coeff*rows.T
+        if idx%50==0 and idx!= 0:
+            weights_list_per_50_egs.append(weights.copy())
+            
 
-    return prediction_error, weights
+    return prediction_error, weights_list_per_50_egs
+def different_kernel(x_t_1_array,current_example,type_of_kernel = None, degree_poly =2, gamma_rbf= 0.1 ):
+    if type_of_kernel== 'linear':
+        sum = 0
+        for i in range(len(x_t_1_array)):
+            sum = x_t_1_array[i].T*current_example.T
+            sum+=sum
+        return sum
+    if type_of_kernel == 'poly':
+        sum= 0
+        for i in range(len(x_t_1_array)):
+            sum = (x_t_1_array[i].T*current_example.T+1)**degree_poly
+            sum+= sum
+        return sum
+    if type_of_kernel== 'rbf':
+        sum = 0
+        for i in range(len(x_t_1_array)):
+            sum = exp(-gamma_rbf*(x_t_1_array[i].T*current_example.T))
+            sum+= sum
+        return sum
+def passive_aggressive_algorithm_with_kernel(train_x,train_y,type_of_update=None,C = 0.01, type_of_kernel=None
+                                             ,degree_poly=2, gamma_rbf = 0.1):
+    no_of_features = train_x.shape[1]
 
+    # Initialize the weights vectors with shape equal to number of features
+    weights = np.zeros((no_of_features, 1))
+
+    ## Passive Aggressive Algorithm
+
+    prediction_error = []
+    array_containing_previous_examples = []
+    for idx, rows in train_x.iterrows():
+        rows = np.array(rows).reshape((1, no_of_features))
+
+        if type_of_kernel == 'linear':
+            if len(array_containing_previous_examples) != 0:
+                sum = different_kernel(array_containing_previous_examples, rows, type_of_kernel= type_of_kernel)
+            else:
+                sum = 0
+
+        if type_of_kernel == 'poly':
+            if len(array_containing_previous_examples) != 0:
+                sum = different_kernel(array_containing_previous_examples,rows, type_of_kernel = type_of_kernel, degree_poly= degree_poly)
+            else:
+                sum = 0
+
+        if type_of_kernel == 'rbf':
+            if len(array_containing_previous_examples) != 0:
+                sum = different_kernel(array_containing_previous_examples,rows, type_of_kernel= type_of_kernel, gamma_rbf= gamma_rbf)
+            else:
+                sum = 0
+
+
+        loss = max(0, 1 - (train_y[idx] * np.dot(weights.T, rows.T)))
+
+        norm_square = np.power(np.linalg.norm(rows, ord=2), 2)
+
+        tau = 0
+        if type_of_update == 'cu':
+            tau = loss / norm_square
+
+        if type_of_update == 'fr':
+            tau = min(C, loss / norm_square)
+
+        if type_of_update == 'sr':
+            tau = loss / (norm_square + (1 / 2 * C))
+
+        coeff = tau * train_y[idx]
+
+        weights += coeff * rows.T
 if __name__ == "__main__":
     # np.random.seed(1000)
     #
